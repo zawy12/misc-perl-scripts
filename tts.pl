@@ -9,6 +9,7 @@
 # Place book to be read in book.txt and run this script:
 # perl tts.pl <sentence number> <speed>
 # use CTRL-C to exit
+# If sentence number and speed are not included, it loads previous stopping point from tts.dat.
 
 open(F,"<book.txt") or die "Could not open the book.txt you want to hear. $!";
 @a=<F>; close F;
@@ -19,17 +20,26 @@ $a=~s/-\n//g;
 $a=~s/ +/ /g;
 $a=~s/`|’/'/g;
 $a=~s/”|“/"/g;
-$a=~s/ *\. *\. *\.//;
-$a=~s/([^a-zA-Z0-9,!\?"'.\n ]+)//g;
+$a=~s/\. *'*"/"./g;
+$a=~s/ Mr(s?)\. / Mr\1 /g;
+$a=~s/ *\.( *\.)*/./;
+$a=~s/([^a-zA-Z0-9,!\?"'.\n\- ]+)//g;
 # $a=~s/\n+ *\n*/\n/g;
 @a=split(/\./, $a);
-$start = $ARGV[0];
-$speed = $ARGV[1];
+if ($ARGV[1]) {
+	$start = $ARGV[0];
+	$speed = $ARGV[1];
+} 
+else { 
+	open(G,"<tts.dat") or die $!; @c=<G>; close G;
+	($start,$speed) = split(/ /,$c[0]);
+} 
 
 $SIG{INT}  = sub { $interrupted = 1; };
 
 for ($i=$start; $i<=$#a; $i+=5) {
-  system("clear");
+	open(G,">tts.dat") or die $!; print G "$i $speed"; close G;
+	system("clear");
 	print "\nSentence $i of $#a\n\n";
 	for ($j=0;$j<5;$j++) {
 		$a[$i+$j] =~ s/\.//g;
@@ -43,4 +53,3 @@ for ($i=$start; $i<=$#a; $i+=5) {
 }
 FIN:
 exit;
-
