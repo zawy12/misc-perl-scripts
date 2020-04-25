@@ -81,7 +81,7 @@ exit;
 ########       SUBROUTINE        #########
 sub get_word_counts {  $c=$_[0];
     $c=lc $c; # ignore capitalization
-    $c=~s/'|`|´|’//g;
+    $c=~s/'|`|Â´|â€™//g;
    # $c=~s/[^a-z ,.:;'"?!\(|\)]/ /gs;   $c=~s/(\.|,|\!|\?|;|:|'|\(|\))/ $1 /gs;  # keep punctuation
    $c=~s/[^a-z ]/ /gs; # no punctuation, no numbers
    $c=~s/ +/ /gs;
