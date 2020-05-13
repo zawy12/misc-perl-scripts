@@ -6,9 +6,14 @@ BEGIN { $SIG{"__DIE__"}  = $SIG{"__WARN__"} = sub { my $error = shift; chomp $er
 
 # This program ranks how similar a "baseline text file is to files in a directory. Meant for words using "a to z" characters.
 # It's based on finding least "entropy difference" which is probably very close to n-gram methods. 
-# The core, simple math:
+# It's my implementation of Kullback–Leibler divergence aka relative entropy.
+# The algorithm is: 
+# Get the same number of words from each "known" author file to compare as long as they have at least 
+# as many words as "baseline" unknown author file.  If a word is in baseline that is not in a "known" file, then
+# give that word 0.25 value as if it occurred 1/4 of 1 time in the file.
 # Let Ai = frequency of word "i" in baseline file, and Bi = freq of word i in comparison file.
-# "entropy difference" = sum over all i in A abs(log(Ai/Bi))
+# relative entropy = sum over all i { Ai*(log(Ai/Bi)) }
+# Lowest relative entropy is closest match.
 # 
 # Can work on 7KB files (1,000 words) if known files are 50KB. Both at 50KB is darn good.
 # Accuracy, approx: 50% in 1st place given 20 authors in same genre with 50k files.
@@ -23,23 +28,25 @@ open(F,"<author_ignore_words.txt") or $words_to_ignore=''; $words_to_ignore=join
  $words_to_ignore=~s/\n/\|/g;
 # $words_to_ignore= 'bitcoin|node|nodes|general|generals|byzantine|encrypted|hash| cryptographic|coin|cryptography|coins|encrypt|messages|port|cryptography|network|cash|currency|transaction|ecash|security|distributed|asics|cpu|fee|fees|rsa|ip|ec-dsa|prebitcoin|decentralized|decentralize|transactions|hashcash|anonymous|cypherpunks|satoshi|money|http|smtp|tcp|arpanet|proof-of-work|nakamoto|block|blocks|chain|blockchain|proof|work'; # for example bitcoin|blockchain|byzantine|
 # $baselinefile='author_baseline.txt'; 
-$baselinefile = 'chris.txt'; # author's text for comparison to authors in $dir. Stays in same directory as this program
-$baselinesize=-s $baselinefile; # get size of file in bytes
-$buffer=1.1; # helps assure enough words are pulled in from known files, but it means the "known" files must be > 10% bigger
+
+$baselinefile = 'unknown_author.txt'; # author's text for comparison to authors in $dir. Stays in same directory as this program
+$baselinesize = -s $baselinefile; # get size of file in bytes
+$buffer = 1.07; # $buffer=1.07 helps assure enough words are pulled in from known files, but it means the "known" files must be > 7% bigger
 $min_file_size = $buffer*$baselinesize;
-$dir='authors_all'; # all files > 30% bigger than baseline file to make sure enough words are retireved.
+# $dir='authors_all'; # all files > 30% bigger than baseline file to make sure enough words are retireved.
+$dir = 'known_authors';
 
 $smallest =1000000000;
 opendir(DIR, $dir) or die $!;
 while ($file = readdir(DIR)) {
    if ($min_file_size < -s ".$blah$dir$blah$file" and $file =~ m/\.txt$/) {
 		push(@files,$file);
-		if (-s ".$blah$dir$blah$file" < $smallest) { $smallest=-s ".$blah$dir$blah$file"; }
+		if (-s ".$blah$dir$blah$file" < $smallest) { $smallest = -s ".$blah$dir$blah$file"; }
   }
 }
 closedir(DIR);
 
-$oversize=$smallest/$baselinesize/$buffer;
+$oversize = $smallest/$baselinesize/$buffer;
 
 ########          PRINT HTML HEADER         #######
 print"Content-type: text/html\n\n<html><H3>Author Comparison, and entropy of authors</H3>
@@ -57,18 +64,19 @@ print "Using first " . int($smallest) . " bytes of known files\nOversize value i
 
 foreach $file (@files) {
     open(F, "<.$blah$dir$blah$file")  or die $!;
-    open(GG, ">$blahtemp$blahout_$file") or die $!;
+   # open(GG, ">temp_out_$file") or die $!; 
     read(F,$c,$baselinesize*$oversize*$buffer); close F;
     %known_count=get_word_counts($c);
      foreach $word (keys %baseline_count) {
 		$m=$baseline_count{$word};
 		# begin core calculation
 		$k = $known_count{$word}/$oversize;
-		 if ($known_count{$word} < 1 ) { $k=.25/$total_words/$oversize; } # 0.25 was determined by experiment
-		$scores{$file}+=abs(log($m/$k));
+		 if ($known_count{$word} < 1 ) { $k=.25/$oversize; } # 0.25 was determined by experiment
+		$scores{$file}+=$m*log($m/$k);  # Kullback–Leibler divergence aka relative entropy
 		# end core calculation
 	} # next word
-   close GG;
+	$scores{$file} /= $total_words;
+ #  close GG;
 }  # next file
 ######      FINISHED  ----- PRINT RESULTS     ##########
 print "First $total_words words from baseline text above and known texts below were compared.<BR><BR>";
@@ -81,7 +89,7 @@ exit;
 ########       SUBROUTINE        #########
 sub get_word_counts {  $c=$_[0];
     $c=lc $c; # ignore capitalization
-    $c=~s/'|`|´|’//g;
+    $c=~s/'|`|´|’//g; 
    # $c=~s/[^a-z ,.:;'"?!\(|\)]/ /gs;   $c=~s/(\.|,|\!|\?|;|:|'|\(|\))/ $1 /gs;  # keep punctuation
    $c=~s/[^a-z ]/ /gs; # no punctuation, no numbers
    $c=~s/ +/ /gs;
